@@ -1,0 +1,261 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <title>Mandelbrot in HTML5</title>
+    <script type="text/javascript" src="complex.js"></script>
+    <script type="text/javascript">
+        
+        // Generating fractals
+
+        var lastFormula;
+        var tim;
+        function generateFractal(formula, resetSize) {
+            clearTimeout(tim);
+            lastFormula = formula;
+
+            if (resetSize) {
+                offset = new Complex(formula.offset.x, formula.offset.y);
+                size = new Complex(formula.size.x, formula.size.y);
+            }
+
+		    var cv = document.getElementById("cv");
+            var w = cv.width;
+            var h = cv.height;
+
+            var g = cv.getContext("2d");
+            var img = g.getImageData(0, 0, w, h);
+            var pix = img.data;
+		    var y = 0;
+
+            function getColor(i) {
+	            var k = 1.0 / 3.0;
+	            var k2 = 2.0 / 3.0;
+	            var cr = 0.0;
+	            var cg = 0.0;
+	            var cb = 0.0;
+	            if (i >= k2) {
+		            cr = i - k2;
+		            cg = (k - 1) - cr;
+	            }
+	            else if (i >= k) {
+		            cg = i - k;
+		            cb = (k - 1) - cg;
+	            }
+	            else {
+		            cb = i;
+	            }
+	            var r = parseInt(cr * 3 * 255);
+	            var g = parseInt(cg * 3 * 255);
+	            var b = parseInt(cb * 3 * 255);
+	            return [r, g, b];
+            }
+            function drawPixel(x, y, i) {
+	            var c = getColor(i);
+	            var off = 4 * (y * w + x);
+	            pix[off] = c[0];
+	            pix[off + 1] = c[1];
+	            pix[off + 2] = c[2];
+	            pix[off + 3] = 255;
+            }
+            function drawLine() {
+	            for (var x = 0; x < w; x++) {
+                    var c = formula(new Complex(x / w / size.x + offset.x, y / h / size.y + offset.y));
+                    drawPixel(x, y, c);
+	            }
+	            g.putImageData(img, 0, 0);
+                if (++y < h)
+                    tim = setTimeout(drawLine, 1);
+                else
+	                document.getElementById("im").src = cv.toDataURL();
+            }
+            if (y < h)
+	            tim = setTimeout(drawLine, 1);
+		}
+
+		// Zooming and switching
+
+        var offset = new Complex(-3.0, -2.0);
+        var size = new Complex(0.25, 0.25);
+
+        var down = false;
+        var x1, y1, x2;
+        function canvas_onmousedown(e) {
+            var sel = document.getElementById("sel");
+            var di = document.getElementById("di");
+
+            x1 = x2 = e.pageX - di.offsetLeft;
+            y1 = e.pageY - di.offsetTop;
+
+            if (switching) {
+                var cv = document.getElementById("cv");
+                var w = cv.width;
+                var h = cv.height;
+
+                julia.seed.x = x1 / w / size.x + offset.x;
+                julia.seed.y = y1 / h / size.y + offset.y;
+
+                cv.style.cursor = "";
+                switching = false;
+                generateFractal(julia, true);
+
+                var info = document.getElementById("info");
+                info.innerHTML = "Julia seed: ";
+                info.innerHTML += julia.seed.x + ";";
+                info.innerHTML += julia.seed.y;
+            }
+            else {
+                down = true;
+
+                sel.style.left = x1.toString() + "px";
+                sel.style.top = y1.toString() + "px";
+
+                sel.style.width = "0px";
+                sel.style.height = "0px";
+
+                sel.style.visibility = "visible";
+            }
+        }
+        function canvas_onmousemove(e) {
+            if (down) {
+                var sel = document.getElementById("sel");
+                var di = document.getElementById("di");
+
+                x2 = e.pageX - di.offsetLeft;
+
+                sel.style.left = Math.min(x1, x2).toString() + "px";
+                sel.style.top = Math.min(y1, y1 + x2 - x1).toString() + "px";
+
+                sel.style.width = (Math.max(x1, x2) - Math.min(x1, x2)).toString() + "px";
+                sel.style.height = (Math.max(x1, x2) - Math.min(x1, x2)).toString() + "px";
+            }
+        }
+        function canvas_onmouseup() {
+            if (down) {
+                down = false;
+
+                var sel = document.getElementById("sel");
+                var di = document.getElementById("di");
+                var cv = document.getElementById("cv");
+
+                sel.style.visibility = "collapse";
+
+                var x = Math.min(x1, x2);
+                var y = Math.min(y1, y1 + x2 - x1);
+                var w = Math.max(x1, x2) - Math.min(x1, x2);
+                if (w > 10) {
+                    var d = w / cv.width;
+
+                    offset.x += x / cv.width / size.x;
+                    offset.y += y / cv.height / size.y;
+
+                    size.x /= d;
+                    size.y /= d;
+
+                    generateFractal(lastFormula);
+                }
+            }
+        }
+
+        var switching = false;
+        function switch_onclick() {
+            if (lastFormula == julia) {
+                offset = new Complex(-3.0, -2.0);
+                size = new Complex(0.25, 0.25);
+                generateFractal(mandelbrot, true);
+                var info = document.getElementById("info");
+                info.innerHTML = "";
+            }
+            else {
+                switching = true;
+                var cv = document.getElementById("cv");
+                cv.style.cursor = "crosshair";
+            }
+        }
+
+        // Formulas
+
+        function mandelbrot(xy) {
+            var z = new Complex(xy.x, xy.y);
+            var i = 0;
+
+            while (i < mandelbrot.maxIter && z.abs() <= mandelbrot.bailout) {
+                z = z.pow(mandelbrot.power).add(xy);
+                i++;
+            }
+
+            if (i < mandelbrot.maxIter) {
+                i -= Math.log(Math.log(z.abs())) / Math.log(mandelbrot.power.abs());
+                return i / mandelbrot.maxIter;
+            }
+            else
+                return 0.0;
+        }
+        mandelbrot.maxIter = 32;
+        mandelbrot.power = new Complex(2.0, 0.0);
+        mandelbrot.bailout = 4.0;
+        mandelbrot.offset = new Complex(-3.0, -2.0);
+        mandelbrot.size = new Complex(0.25, 0.25);
+
+        function julia(xy) {
+            var z = new Complex(xy.x, xy.y);
+            var i = 0;
+
+            while (i < julia.maxIter && z.abs() <= julia.bailout) {
+                z = z.pow(julia.power).add(julia.seed);
+                i++;
+            }
+
+            if (i < julia.maxIter) {
+                i -= Math.log(Math.log(z.abs())) / Math.log(julia.power.abs());
+                return i / julia.maxIter;
+            }
+            else
+                return 0.0;
+        }
+        julia.maxIter = 32;
+        julia.power = new Complex(2.0, 0.0);
+        julia.bailout = 4.0;
+        julia.offset = new Complex(-2.0, -2.0);
+        julia.size = new Complex(0.25, 0.25);
+        julia.seed = new Complex(0.0, 0.0);
+
+        // Refreshing parameters
+
+        function refresh() {
+            mandelbrot.maxIter = parseFloat(document.getElementById("maxIterIn").value);
+            mandelbrot.power.x = parseFloat(document.getElementById("powerXIn").value);
+            mandelbrot.power.y = parseFloat(document.getElementById("powerYIn").value);
+            mandelbrot.bailout = parseFloat(document.getElementById("bailoutIn").value);
+            julia.maxIter = mandelbrot.maxIter;
+            julia.power.x = mandelbrot.power.x;
+            julia.power.y = mandelbrot.power.y;
+            julia.bailout = mandelbrot.bailout;
+            generateFractal(lastFormula);
+        }
+    </script>
+</head>
+<body onload="generateFractal(mandelbrot, true);" onmouseup="canvas_onmouseup();" onmousemove="canvas_onmousemove(event);">
+    <h1>Mandelbrot and Julia in HTML5</h1>
+    <p>
+        Maximal iterations: <input id="maxIterIn" type="text" value="32" /><br />
+        Power (real): <input id="powerXIn" type="text" value="2" /><br />
+        Power (imaginary): <input id="powerYIn" type="text" value="0" /><br />
+        Bailout: <input id="bailoutIn" type="text" value="4" /><br />
+        <input type="button" value="Refresh" onclick="refresh();" />
+        <input type="button" value="Reset size" onclick="generateFractal(lastFormula, true);" />
+        <input type="button" value="Switch" onclick="switch_onclick();" />
+        <span id="info"></span>
+    </p>
+    <div id="di" style="position: relative;">
+        <canvas id="cv" width="580" height="580" style="border-style: solid; border-width: 1px;"
+                onmousedown="canvas_onmousedown(event);">
+            Your browser doesn't support canvas.
+        </canvas>
+        <div id="sel" style="position: absolute; visibility: collapse; border-color: #ff0000; border-style: solid; border-width: 1px;"></div>
+    </div>
+    <p>
+        In order to save the result save this image:<br />
+        <img id="im" style="width: 50px; height: 50px;" />
+    </p>
+</body>
+</html>

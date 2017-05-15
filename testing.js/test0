@@ -1,0 +1,20 @@
+Rectangular (pat == 1)
+Init:
+	var rot = @rot*pi/180
+	var plar = new Complex(0.0,0.0)
+	var rad = 0
+	var radin = 0
+	Complex i = (0.0,1.0)
+	Complex c = @cenlarge + (@censmall-@cenlarge) / (1-@fac*exp(i*rot))
+	plar=@cenlarge+@wid/2+i*@heigh/2
+	rad=real(plar-c)
+	Float d = 1 / @frac
+	Complex m = 0
+	Float alfa = 0
+	Float sc = 0
+
+	/***var states: 0 = zero; 1 = alfa; 2 = 180 - alfa; 3 = 180; 4 = 180 + alfa; 5 = -alfa***/
+	If var==0; //zero
+	Sc = 1, alfa = 0
+	Elseif var == 1 //alfa
+		M = 2*#pi-rot+i*log(d)
